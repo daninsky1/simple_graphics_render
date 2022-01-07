@@ -7,9 +7,6 @@
 
 #include "san.h"
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.h"
-
 
 static BITMAPINFO glob_bmi;
 static void *glob_bkbuf;
@@ -23,26 +20,6 @@ static San::State *glob_state;
 static uint8_t *glob_ttf_buf;
 static char glob_ttf_path_buf[1<<25];
 
-
-void ttf_init()
-{
-    stbtt_fontinfo font;
-
-    int w = 0;
-    int h = 0;
-    int i = 0;
-    int j = 0;
-    int c = 'a';
-    float s = 20.0f;
-
-
-    fread(glob_ttf_path_buf, 1, 1<<25, fopen("c:/windows/fonts/consola.ttf", "rb"));
-    stbtt_InitFont(&font, reinterpret_cast<uint8_t*>(glob_ttf_path_buf),
-        stbtt_GetFontOffsetForIndex(reinterpret_cast<uint8_t*>(glob_ttf_path_buf), 0));
-    glob_ttf_buf = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, s), c &w, &h, 0, 0, 0);
-
-    stbtt_FreeBitmap(glob_ttf_buf, NULL);
-}
 
 INT WINAPI WinMain(HINSTANCE hinstance, HINSTANCE h_prev_instance, PSTR lp_cmd_line, INT n_cmd_show)
 {
