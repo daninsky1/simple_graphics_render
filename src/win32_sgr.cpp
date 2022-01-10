@@ -3,26 +3,28 @@
 
 #include <exception>
 
-#include "win32_san.h"
+#include "win32_sgr.h"
 
-#include "san.h"
+#include "sgr.h"
+
+
 
 
 static BITMAPINFO glob_bmi;
-static void *glob_bkbuf;
+static OffscreenBuffer glob_bkbuf;
 static void *glob_dd_bkbuf;
 static int glob_bkbuf_w;
 static int glob_bkbuf_h;
 static BOOL running = true;
 
-static San::State *glob_state;
 
 static uint8_t *glob_ttf_buf;
 static char glob_ttf_path_buf[1<<25];
 
-
+#pragma warning(disable : 4100)
 INT WINAPI WinMain(HINSTANCE hinstance, HINSTANCE h_prev_instance, PSTR lp_cmd_line, INT n_cmd_show)
 {
+#pragma warning(default : 4100)
     // NOTE(daniel): Window Class Extended
     WNDCLASSEX win_cls_ex;
 
@@ -46,14 +48,13 @@ INT WINAPI WinMain(HINSTANCE hinstance, HINSTANCE h_prev_instance, PSTR lp_cmd_l
         return 1;
     }
 
-    hinst = hinstance;
 
     int wndw = 500;
     int wndh = 500;
     HWND hwindow = CreateWindowEx(
         WS_EX_OVERLAPPEDWINDOW,         // NOTE(daniel): An optional extended window style, I don't know what this mean
         win_cls_ex.lpszClassName,              // The name of the application
-        title,                          // The text that appears in the title bar
+        "Simple Graphics Render",                          // The text that appears in the title bar
         WS_OVERLAPPEDWINDOW,            // the type of window to create
         CW_USEDEFAULT, CW_USEDEFAULT,   // Initial position (x, y)
         wndw, wndh,                     // Initial size (width, length)
@@ -89,9 +90,6 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
     switch (msg) {
     case WM_CREATE: {
         // TODO(daniel): Create the init process
-
-        glob_state = static_cast<San::State*>(malloc(sizeof(San::State)));
-        glob_state->mode = Mode::normal;
 
         RECT client_rect;
         GetClientRect(hwnd, &client_rect);
@@ -153,10 +151,6 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         char* vkcodestr = static_cast<char*>(malloc(sizeof(char)*128));
         sprintf(vkcodestr, "vkcode: %d - repeat_count: %d\n", vkcode, repeat_count);
         OutputDebugStringA(vkcodestr);
-
-        if (glob_state->mode == Mode::insert) {
-            //switch (wparam)
-        }
     } break;
     default:
         return DefWindowProc(hwnd, msg, wparam, lparam);
@@ -166,67 +160,47 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
     return 0;
 }
 
-void clear_screen(void *buffer)
-{
-    int pitch = w*bytes_per_pixel;
-    uint8_t *row = static_cast<uint8_t*>(glob_bkbuf);
-    for (int y = 0; y < h; ++y) {
-        uint8_t *pixel = row;
-        for (int x = 0; x < w; ++x) {
-            *pixel = 0;
-            ++pixel;
-            *pixel = 255;
-            ++pixel;
-            *pixel = 0;
-            ++pixel;
-            ++pixel;
-        }
-        row += pitch;
-    }
-}
-
 void resize_dib_section(int w, int h)
 {
-    if (glob_bkbuf) {
-        //VirtualFree(glob_bkbuf, 0, MEM_RELEASE);
-        free(glob_bkbuf);
+    if (glob_bkbuf.memory) {
+        free(glob_bkbuf.memory);
     }
 
-    glob_bkbuf_w = w;
-    glob_bkbuf_h = h;
+    glob_bkbuf.width = w;
+    glob_bkbuf.height = h;
+    glob_bkbuf.bytes_per_pixel = 4;
+    glob_bkbuf.pitch = glob_bkbuf.bytes_per_pixel * glob_bkbuf.width;
+    glob_bkbuf.size = glob_bkbuf.height*glob_bkbuf.pitch;
+    glob_bkbuf.memory = static_cast<void*>(malloc(glob_bkbuf.size));
 
     glob_bmi.bmiHeader.biSize          = sizeof(glob_bmi.bmiHeader);
-    glob_bmi.bmiHeader.biWidth         = w;
-    glob_bmi.bmiHeader.biHeight        = -h;
+    glob_bmi.bmiHeader.biWidth         = glob_bkbuf.width;
+    glob_bmi.bmiHeader.biHeight        = -glob_bkbuf.height;
     glob_bmi.bmiHeader.biPlanes        = 1;
     glob_bmi.bmiHeader.biBitCount      = 32;
     glob_bmi.bmiHeader.biCompression   = BI_RGB;
 
-    int bytes_per_pixel = 4;
-    size_t bkbuf_sz = w*h*bytes_per_pixel;
-    glob_bkbuf = static_cast<void*>(malloc(bkbuf_sz));
+    if (!glob_bkbuf.memory) OutputDebugString("bitmap buffer allocation fail\n");
 
-    //glob_bkbuf = VirtualAlloc(0, bkbuf_sz, MEM_COMMIT, PAGE_READWRITE);
-
-    if (!glob_bkbuf) OutputDebugString("bitmap buffer allocation fail\n");
-
-    clear_screen();
+    clear_screen(glob_bkbuf, 150, 3, 234);
 }
 
 
 void update_window(HDC hdc, RECT client_rect, RECT src_rect)
 {
-    int wdest = client_rect.right - client_rect.left;
-    int hdest = client_rect.bottom - client_rect.top;
-    int wsrc = src_rect.right - src_rect.left;
-    int hsrc = src_rect.bottom - src_rect.top;
+    int destw = client_rect.right - client_rect.left;
+    int desth = client_rect.bottom - client_rect.top;
+    int srcw = src_rect.right - src_rect.left;
+    int srch = src_rect.bottom - src_rect.top;
+
+    draw_line(glob_bkbuf, 255, 255, 255, 10, 10, 50, 50);
 
     StretchDIBits(
         hdc,
         //0, 0, wsrc, hsrc,
-        0, 0, wsrc, hsrc,
-        0, 0, wdest, hdest,
-        glob_bkbuf,
+        0, 0, srcw, srch,
+        0, 0, destw, desth,
+        glob_bkbuf.memory,
         &glob_bmi,
         DIB_RGB_COLORS,
         SRCCOPY

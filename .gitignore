@@ -3,3 +3,5 @@
 *.obj
 *.pdb
 tags
+*.vim
+build/

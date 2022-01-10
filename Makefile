@@ -2,7 +2,7 @@
 .IGNORE:
 
 # Source
-PROGRAM_SRC=src\win32_sgr.cpp
+PROGRAM_SRC=src\win32_sgr.cpp src\sgr.cpp
 
 TEST_SRC=src\test.cpp
 
@@ -13,7 +13,7 @@ OBJ=
 HDR=
 
 # Defines
-DDEFINES=/DSAN_DEVELOPER_BUILD
+DDEFINES=/DSGR_DEVELOPER_BUILD
 
 # Compiler Debug Flags
 DCFLAGS=/EHa /MDd /Zi /Od /FC /MDd /MP /diagnostics:column /nologo
@@ -22,15 +22,14 @@ DCFLAGS=/EHa /MDd /Zi /Od /FC /MDd /MP /diagnostics:column /nologo
 RCFLAGS=
 
 # c4189 initialized but not referenced warning
-WINIT=/wd4189
+WINIT=/wd4189 /wd4996
 WARNINGS=/W4 /wd4201 $(WINIT)
 
 BUILD_DIR=build
 DEBUG_DIR=debug
 RELEASE_DIR=release
 
-DEBUG_TARGET_PATH=$(BUILD_DIR)\$(DEBUG_DIR)
-RELEASE_TARGET_PATH=$(BUILD_DIR)\$(RELEASE_DIR)
+DEBUG_TARGET_PATH=$(BUILD_DIR)
 
 SYS_LIB=User32.lib gdi32.lib winmm.lib comdlg32.lib
 
@@ -47,7 +46,6 @@ all: $(DEBUG_PROGRAM)
 
 $(DEBUG_PROGRAM): $(SRC)
 	if not exist $(BUILD_DIR) mkdir $(BUILD_DIR)
-	if not exist $(BUILD_DIR)\$(DEBUG_DIR) mkdir $(BUILD_DIR)\$(DEBUG_DIR)
 	$(CC) $(PROGRAM_SRC) $(DCFLAGS) $(WARNINGS) $(INCLUDE_DIR) $(SYS_LIB) $(DDEFINES) /Fo$(DEBUG_TARGET_PATH)\ /Fe$(DEBUG_TARGET_PATH)\$(PROGRAM)
 
 clean:

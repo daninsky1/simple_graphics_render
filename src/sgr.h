@@ -1,53 +1,17 @@
-#pragma once
+#include <stdint.h>
 
 
-constexpr int MAX_WIN_STR_SIZE = 256;
-
-enum class Mode {
-    normal,
-    insert,
-    mark
+struct OffscreenBuffer {
+    void *memory;
+    int size;
+    int width;
+    int height;
+    int pitch;
+    int bytes_per_pixel;
 };
 
-namespace San {
-    struct State {
-        char window_name[MAX_WIN_STR_SIZE];
-        Mode mode;
-    };
-
-    struct BkBuffer{
-        // NOTE(daniel): Pixels are always 32-bits wide, memory order BB GG RR XX
-        void* memory;
-        int width;
-        int height;
-        int pitch;
-        int bytes_per_pixel;
-    };
-
-    struct KeyboardInput {
-        bool is_down;
-        bool is_deadkey;
-    };
-
-    struct MouseInput {
-
-    };
-
-    struct Input {
-        KeyboardInput keyboard;
-        MouseInput mouse;
-    };
-
-    struct TextBuffer {
-        char* tbuffer;
-    };
-
-    void init();
-
-    void update_state();
-
-    void render();
-}
-
+void clear_screen(OffscreenBuffer buffer, uint8_t r, uint8_t g, uint8_t b);
+void draw_line(OffscreenBuffer buffer, uint8_t r, uint8_t g, uint8_t b, int x0, int y0,
+    int x1, int y1);
 
 
