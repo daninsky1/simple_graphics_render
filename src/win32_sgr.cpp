@@ -8,8 +8,6 @@
 #include "sgr.h"
 
 
-
-
 static BITMAPINFO glob_bmi;
 static OffscreenBuffer glob_bkbuf;
 static void *glob_dd_bkbuf;
@@ -64,23 +62,33 @@ INT WINAPI WinMain(HINSTANCE hinstance, HINSTANCE h_prev_instance, PSTR lp_cmd_l
         NULL                            // Not used in this application
     );
 
-    if (!hwindow) {
-        running = false;
-        // TODO(daniel): LOG
-    }
+    if (!hwindow) { running = false; }
+    else { running = true; }
 
 
     ShowWindow(hwindow, n_cmd_show);
     //UpdateWindow(hwindow);
 
-    MSG msg;
+    MSG msg = { };
+    HDC hdc = NULL;
+    while (running) {
+        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_QUIT) { break; }
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
 
-    while (GetMessage(&msg, NULL, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        RECT client_rect;
+        GetClientRect(hwindow, &client_rect);
+        RECT src_rect = client_rect;
+        resize_dib_section(src_rect.right, src_rect.bottom);
+        if (!hdc) {
+            hdc = GetDC(hwindow);
+        }
+
+        DEBUG_draw_test_box(glob_bkbuf, hdc, client_rect, src_rect, glob_bkbuf.width/2, glob_bkbuf.height/2, 300);
     }
-
-    return (int) msg.wParam;
+    return static_cast<int>(msg.wParam);
 }
 
 LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -89,17 +97,6 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 
     switch (msg) {
     case WM_CREATE: {
-        // TODO(daniel): Create the init process
-
-        RECT client_rect;
-        GetClientRect(hwnd, &client_rect);
-
-        int width = client_rect.right - client_rect.left;
-        int height = client_rect.bottom - client_rect.top;
-
-        resize_dib_section(width, height);
-
-        int n = 2;
     } break;
     case WM_SIZE: {
         RECT client_rect;
@@ -110,18 +107,6 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 
         resize_dib_section(width, height);
     } break;
-    case WM_PAINT: {
-        PAINTSTRUCT paint_struct;
-        HDC hdc = BeginPaint(hwnd, &paint_struct);
-
-        RECT client_rect;
-        GetClientRect(hwnd, &client_rect);
-
-        update_window(hdc, client_rect, paint_struct.rcPaint);
-
-        EndPaint(hwnd, &paint_struct);
-        //ReleaseDC(hwnd, hdc);
-    } break;
     case WM_CLOSE: {
         // NOTE(doc): The WM_CLOSE message fiver you an opportunity to prompt
         // the user before closing the window.
@@ -130,28 +115,29 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
     } break;
     case WM_DESTROY: {
         PostQuitMessage(0);
+        running = false;
     } break;
-    case WM_KEYDOWN: case WM_KEYUP:
-    case WM_SYSKEYDOWN: case WM_SYSKEYUP: {
-        // NOTE(daniel): return the low order byte from wparam
-        WORD vkcode = LOWORD(wparam);
+    //case WM_KEYDOWN: case WM_KEYUP:
+    //case WM_SYSKEYDOWN: case WM_SYSKEYUP: {
+    //    // NOTE(daniel): return the low order byte from wparam
+    //    WORD vkcode = LOWORD(wparam);
 
-        BYTE scan_code = LOBYTE(HIWORD(lparam));
-        BOOL scan_code_e0 = (HIWORD(lparam) & KF_EXTENDED) == KF_EXTENDED;
+    //    BYTE scan_code = LOBYTE(HIWORD(lparam));
+    //    BOOL scan_code_e0 = (HIWORD(lparam) & KF_EXTENDED) == KF_EXTENDED;
 
-        BOOL up_flag = (HIWORD(lparam) & KF_UP) == KF_UP;
-        BOOL repeat_flag = (HIWORD(lparam) & KF_REPEAT) == KF_REPEAT;
-        WORD repeat_count = LOWORD(lparam);
+    //    BOOL up_flag = (HIWORD(lparam) & KF_UP) == KF_UP;
+    //    BOOL repeat_flag = (HIWORD(lparam) & KF_REPEAT) == KF_REPEAT;
+    //    WORD repeat_count = LOWORD(lparam);
 
-        BOOL alt_down_flag = (HIWORD(lparam) & KF_ALTDOWN) == KF_ALTDOWN;
+    //    BOOL alt_down_flag = (HIWORD(lparam) & KF_ALTDOWN) == KF_ALTDOWN;
 
-        BOOL dlg_mode_flag = (HIWORD(lparam) & KF_DLGMODE) == KF_DLGMODE;
-        BOOL menu_mode_flag = (HIWORD(lparam) & KF_MENUMODE) == KF_MENUMODE;
+    //    BOOL dlg_mode_flag = (HIWORD(lparam) & KF_DLGMODE) == KF_DLGMODE;
+    //    BOOL menu_mode_flag = (HIWORD(lparam) & KF_MENUMODE) == KF_MENUMODE;
 
-        char* vkcodestr = static_cast<char*>(malloc(sizeof(char)*128));
-        sprintf(vkcodestr, "vkcode: %d - repeat_count: %d\n", vkcode, repeat_count);
-        OutputDebugStringA(vkcodestr);
-    } break;
+    //    char* vkcodestr = static_cast<char*>(malloc(sizeof(char)*128));
+    //    sprintf(vkcodestr, "vkcode: %d - repeat_count: %d\n", vkcode, repeat_count);
+    //    OutputDebugStringA(vkcodestr);
+    //} break;
     default:
         return DefWindowProc(hwnd, msg, wparam, lparam);
         break;
@@ -186,14 +172,12 @@ void resize_dib_section(int w, int h)
 }
 
 
-void update_window(HDC hdc, RECT client_rect, RECT src_rect)
+void win32_display_buffer(HDC hdc, RECT client_rect, RECT src_rect)
 {
     int destw = client_rect.right - client_rect.left;
     int desth = client_rect.bottom - client_rect.top;
     int srcw = src_rect.right - src_rect.left;
     int srch = src_rect.bottom - src_rect.top;
-
-    draw_line(glob_bkbuf, 255, 255, 255, 10, 10, 50, 50);
 
     StretchDIBits(
         hdc,
